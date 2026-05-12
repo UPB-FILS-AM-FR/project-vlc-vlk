@@ -2,7 +2,7 @@
 
 | | |
 |-|-|
-|`Author` | [Ton Nom Complet]
+|`Author` Ciolac Vladislav
 
 ## Description
 SecuriGate est un système de contrôle d'accès intelligent et IoT (Internet of Things) qui combine plusieurs protocoles de communication matérielle et sans fil. Le cœur du système repose sur un Raspberry Pi Pico W qui gère un environnement multitâche. L'authentification locale se fait via un lecteur RFID (communiquant par le bus SPI). L'interface utilisateur locale est assurée par un écran LCD 1602 (utilisant un adaptateur I2C pour optimiser les broches IO). 
