@@ -10,6 +10,8 @@
 
 ## Architecture
 
+localocaloca
+
 ### Block diagram
 
 <!-- Make sure the path to the picture is correct -->
