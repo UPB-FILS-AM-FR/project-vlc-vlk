@@ -80,36 +80,6 @@ Le système est structuré en plusieurs sous-systèmes coordonnés par l'unité 
 
 ## Log
 
-### Week 1
-* Étude des spécifications et commande des composants matériels.
-* Flashage du firmware MicroPython/C++ sur le Raspberry Pi Pico W.
-* Test de clignotement (Blink) et vérification des tensions (3.3V vs 5V VBUS).
-
-### Week 2
-* Câblage et validation du bus SPI : lecture réussie de l'UID d'un badge RFID avec le module RC522.
-* Câblage et validation du bus I2C : affichage du texte "SecuriGate Init" sur l'écran LCD 1602.
-* Calibration du signal PWM pour contrôler les angles (0° et 90°) du servomoteur SG90.
-
-### Week 3
-* Création du circuit diviseur de tension (LDR + 10kΩ) et lecture via l'ADC.
-* Programmation de la relation inversement proportionnelle entre l'ADC (lumière) et le PWM de la LED.
-* Implémentation du bouton d'urgence en utilisant une interruption matérielle (`attachInterrupt`).
-* Refonte du code central pour supprimer la fonction bloquante `sleep()`/`delay()` au profit de timers basés sur `millis()`/`ticks_ms()`.
-
-### Week 4
-* Étude du protocole Bluetooth Low Energy (GATT, Services, Characteristics).
-* Configuration du Raspberry Pi Pico W en tant que serveur BLE exposant une caractéristique en écriture (Write).
-* Test d'envoi de données depuis une application générique (comme nRF Connect) vers le Pico W.
-
-### Week 5
-* Développement du script passerelle (Gateway) en Python sur le PC local.
-* Utilisation de la bibliothèque `bleak` pour établir la connexion automatique PC -> Pico W.
-* Création de l'interface web locale avec `Flask` pour permettre le contrôle depuis le réseau Wi-Fi local (Smartphone -> PC -> BLE -> Pico W).
-
-### Week 6
-* Assemblage final sur breadboard, organisation propre du câblage (gestion des jumpers).
-* Tests d'intégration de bout en bout (scénarios de badge, ouverture web, mode nuit et urgence simultanés).
-* Rédaction de la documentation technique, réalisation du schéma KiCad et finalisation du fichier README.
 
 ## Reference links
 
