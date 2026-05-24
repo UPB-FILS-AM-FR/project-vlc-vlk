@@ -79,7 +79,227 @@ Le système est structuré en plusieurs sous-systèmes coordonnés par l'unité 
 
 
 ## Log
+## Code
+#include <SPI.h>
+#include <MFRC522.h>
+#include <Servo.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <SerialBT.h> 
+ 
+// Pini RFID (SPI)
+#define RST_PIN   20 
+#define SS_PIN    17 
+#define MISO_PIN  16 
+#define SCK_PIN   18 
+#define MOSI_PIN  19 
+ 
+#define SERVO_PIN 14 
+ 
+#define I2C_SDA_PIN 4  
+#define I2C_SCL_PIN 5  
+ 
+#define LDR_PIN          26 // INTRARE: Senzor de lumină (Fotorezistor)
+#define LED_LUMINA_PIN   15 // IEȘIRE: LED-ul de veghe (aprins la întuneric)
+#define LED_URGENTA_PIN  13 // IEȘIRE: Cele 4 LED-uri pe tranzistor (doar la urgență)
+#define BUZ_PIN          8  // IEȘIRE: Buzzere pe tranzistor (pentru alarme)
+#define BTN_PIN          12 // INTRARE: Buton de urgență
 
+ 
+MFRC522 mfrc522(SS_PIN, RST_PIN); 
+Servo usaServo;
+LiquidCrystal_I2C lcd(0x27, 16, 2); 
+
+ 
+unsigned long timpDeschidere = 0;
+const unsigned long durataDeschisa = 5000; 
+bool usaEsteDeschisa = false;
+
+unsigned long timpBuzzer = 0;
+const unsigned long durataBuzzer = 3000; 
+bool buzzerPornit = false;
+
+volatile bool urgentaDeclansata = false;
+
+ 
+byte cardAutorizat[4] = {0x25, 0xBF, 0x11, 0x06}; 
+ 
+void isrButonUrgenta();
+void verificaUrgenta();
+void pornesteAlarma();
+void verificaTimerBuzzer();
+void verificaLumina();
+void verificaBluetooth();
+void verificaRFID();
+void verificaTimerUsa();
+void deblocheazaUsa();
+void blocheazaUsa();
+ 
+void setup() {
+  Serial.begin(115200);
+  
+  // Inițializare Bluetooth
+  SerialBT.setName("SecuriGate_BT"); 
+  SerialBT.begin();
+  delay(2000); 
+   
+  pinMode(LDR_PIN, INPUT);
+  pinMode(LED_LUMINA_PIN, OUTPUT);
+  pinMode(LED_URGENTA_PIN, OUTPUT);
+  pinMode(BUZ_PIN, OUTPUT);
+   
+  pinMode(BTN_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(BTN_PIN), isrButonUrgenta, FALLING);
+ 
+  SPI.setRX(MISO_PIN);
+  SPI.setTX(MOSI_PIN);
+  SPI.setSCK(SCK_PIN);
+  SPI.begin();
+  mfrc522.PCD_Init();
+ 
+  Wire.setSDA(I2C_SDA_PIN);
+  Wire.setSCL(I2C_SCL_PIN);
+  Wire.begin();
+  lcd.init();
+  lcd.backlight();
+  
+  usaServo.attach(SERVO_PIN);
+  blocheazaUsa(); 
+  
+  Serial.println("Sistem Complet PORNIT!");
+}
+
+void loop() {
+  verificaRFID();
+  verificaTimerUsa();
+  verificaLumina();     // Lumina de veghe pe timp de noapte
+  verificaUrgenta();    // Monitorizare buton hardware
+  verificaBluetooth();  // Comenzi de pe telefon
+  verificaTimerBuzzer(); // Oprire automată a alarmei
+}
+
+void isrButonUrgenta() {
+  urgentaDeclansata = true; 
+}
+
+void verificaUrgenta() {
+  if (urgentaDeclansata) {
+    urgentaDeclansata = false; 
+    
+    digitalWrite(LED_URGENTA_PIN, HIGH);
+    
+    pornesteAlarma(); 
+
+    if (!usaEsteDeschisa) {
+      deblocheazaUsa();
+      SerialBT.println("ALERTA: Deschidere de urgenta prin buton!");
+    } else {
+      timpDeschidere = millis(); 
+    }
+  }
+}
+
+void pornesteAlarma() {
+  digitalWrite(BUZ_PIN, HIGH);
+  buzzerPornit = true;
+  timpBuzzer = millis();
+}
+
+void verificaTimerBuzzer() {
+  if (buzzerPornit && (millis() - timpBuzzer >= durataBuzzer)) {
+    digitalWrite(BUZ_PIN, LOW); 
+    buzzerPornit = false;
+  }
+}
+
+void verificaLumina() {
+  int nivelLumina = analogRead(LDR_PIN);
+  int valoarePWM = map(nivelLumina, 200, 800, 255, 0);
+  valoarePWM = constrain(valoarePWM, 0, 255); 
+  
+  analogWrite(LED_LUMINA_PIN, valoarePWM);
+}
+
+void verificaBluetooth() {
+  if (SerialBT.available()) {
+    char comanda = SerialBT.read();
+    
+    if (comanda == 'O' || comanda == 'o') { 
+      if (!usaEsteDeschisa) {
+        deblocheazaUsa();
+        SerialBT.println("Usa deblocata prin Bluetooth.");
+      } else {
+        timpDeschidere = millis(); 
+      }
+    } 
+    else if (comanda == 'C' || comanda == 'c') { 
+      if (usaEsteDeschisa) {
+        blocheazaUsa();
+        SerialBT.println("Usa blocata fortat manual.");
+      }
+    }
+  }
+}
+
+void verificaRFID() {
+  if ( ! mfrc522.PICC_IsNewCardPresent()) return;
+  if ( ! mfrc522.PICC_ReadCardSerial()) return;
+
+  bool accesPermis = true;
+  for (byte i = 0; i < 4; i++) {
+    if (mfrc522.uid.uidByte[i] != cardAutorizat[i]) {
+      accesPermis = false;
+    }
+  }
+
+  if (accesPermis && !usaEsteDeschisa) {
+    deblocheazaUsa();
+    SerialBT.println("Usa deschisa local (Card Valid)."); 
+  } else if (!accesPermis) {
+    pornesteAlarma(); 
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Card Necunoscut!");
+    lcd.setCursor(0, 1);
+    lcd.print("Acces Respins");
+    SerialBT.println("ALERTA DE SECURITATE: Card neautorizat detectat!"); 
+    
+    delay(1500); 
+    if (!usaEsteDeschisa) blocheazaUsa(); 
+  }
+  mfrc522.PICC_HaltA(); 
+}
+
+void verificaTimerUsa() {
+  if (usaEsteDeschisa && (millis() - timpDeschidere >= durataDeschisa)) {
+    blocheazaUsa();
+    SerialBT.println("Usa s-a reblocat automat.");
+  }
+}
+
+void deblocheazaUsa() {
+  usaServo.write(90); 
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Acces Permis!");
+  lcd.setCursor(0, 1);
+  lcd.print("Usa Deschisa");
+  usaEsteDeschisa = true;
+  timpDeschidere = millis(); 
+}
+
+void blocheazaUsa() {
+  usaServo.write(0); 
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("SecuriGate OK");
+  lcd.setCursor(0, 1);
+  lcd.print("Scanati Cardul");
+  
+  digitalWrite(LED_URGENTA_PIN, LOW);
+  
+  usaEsteDeschisa = false;
+}
 
 ## Reference links
 
